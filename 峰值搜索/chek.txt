@@ -1,0 +1,64 @@
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+from scipy.ndimage import label
+
+def extract_peaks_from_file(image_path="noise.png", output_coords="peaks.txt"):
+    # 1. 加载本地图片
+    try:
+        # 打开并转为灰度 (L模式)
+        img_src = Image.open(image_path).convert('L')
+        data = np.array(img_src)
+    except FileNotFoundError:
+        print(f"❌ 错误：在当前目录下找不到 {image_path}，请确保文件已存在。")
+        return
+
+    # 2. 锁定阈值区间
+    max_val = np.max(data)
+    threshold = max_val - 30
+    print(f"📈 图像最高灰度值: {max_val}, 筛选阈值: {threshold}")
+
+    # 3. 寻找连通区域 (岛屿)
+    mask = data >= threshold
+    labeled_array, num_features = label(mask)
+    
+    peak_coords = []
+
+    # 4. 提取每个区域的最高点
+    for i in range(1, num_features + 1):
+        # 找到属于该 ID 的所有像素坐标
+        region_indices = np.where(labeled_array == i)
+        
+        # 提取这些像素的灰度值
+        region_values = data[region_indices]
+        
+        # 找到该区域内的最大值索引 (如果有多个相同最大值，取第一个)
+        local_max_idx = np.argmax(region_values)
+        
+        # 获取对应的 Y 和 X 坐标
+        py, px = region_indices[0][local_max_idx], region_indices[1][local_max_idx]
+        peak_coords.append((px, py))
+
+    # 5. 保存坐标到文件
+    with open(output_coords, "w") as f:
+        for x, y in peak_coords:
+            f.write(f"{x}, {y}\n")
+
+    print(f"✅ 已找到 {len(peak_coords)} 个峰值中心，并写入 {output_coords}")
+
+    # 6. 可视化校验
+    plt.figure(figsize=(10, 10))
+    plt.imshow(data, cmap='gray')
+    if peak_coords:
+        # 解包坐标用于绘图
+        xs, ys = zip(*peak_coords)
+        plt.scatter(xs, ys, s=50, edgecolors='red', facecolors='none', linewidths=1.5, label='Peaks')
+    
+    plt.title(f"Peaks Detection (Threshold > {threshold})")
+    plt.legend()
+    plt.axis('off')
+    plt.savefig("peaks_visualization.png", bbox_inches='tight')
+    plt.show()
+
+# 运行
+extract_peaks_from_file()
